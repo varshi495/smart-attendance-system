@@ -1,0 +1,185 @@
+{% extends "base.html" %}
+{% block title %}Dashboard{% endblock %}
+{% block page_title %}Dashboard{% endblock %}
+
+{% block content %}
+<!-- ── Stats Cards ──────────────────────────────────────────────── -->
+<div class="stats-grid">
+
+  <div class="stat-card stat-blue">
+    <div class="stat-icon">
+      <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+        <circle cx="9" cy="7" r="4"/>
+        <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
+        <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+      </svg>
+    </div>
+    <div class="stat-info">
+      <div class="stat-value" id="stat-total">{{ stats.total_users }}</div>
+      <div class="stat-label">Registered Users</div>
+    </div>
+  </div>
+
+  <div class="stat-card stat-green">
+    <div class="stat-icon">
+      <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <polyline points="20 6 9 17 4 12"/>
+      </svg>
+    </div>
+    <div class="stat-info">
+      <div class="stat-value" id="stat-present">{{ stats.today_present }}</div>
+      <div class="stat-label">Present Today</div>
+    </div>
+  </div>
+
+  <div class="stat-card stat-purple">
+    <div class="stat-icon">
+      <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <line x1="18" y1="20" x2="18" y2="10"/>
+        <line x1="12" y1="20" x2="12" y2="4"/>
+        <line x1="6" y1="20" x2="6" y2="14"/>
+      </svg>
+    </div>
+    <div class="stat-info">
+      <div class="stat-value" id="stat-rate">{{ stats.attendance_rate }}%</div>
+      <div class="stat-label">Attendance Rate</div>
+    </div>
+  </div>
+
+  <div class="stat-card stat-orange">
+    <div class="stat-icon">
+      <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+        <line x1="16" y1="2" x2="16" y2="6"/>
+        <line x1="8" y1="2" x2="8" y2="6"/>
+        <line x1="3" y1="10" x2="21" y2="10"/>
+      </svg>
+    </div>
+    <div class="stat-info">
+      <div class="stat-value" style="font-size:1.1rem;">{{ stats.today_date }}</div>
+      <div class="stat-label">Today's Date</div>
+    </div>
+  </div>
+
+</div>
+
+<!-- ── Main Content Area ────────────────────────────────────────── -->
+<div class="dashboard-grid">
+
+  <!-- Recent Activity -->
+  <div class="card">
+    <div class="card-header">
+      <h2 class="card-title">Recent Activity</h2>
+      <a href="{{ url_for('report_page') }}" class="card-link">View All →</a>
+    </div>
+
+    {% if recent %}
+    <div class="activity-list">
+      {% for entry in recent %}
+      <div class="activity-item">
+        <div class="activity-avatar">{{ entry.name[0].upper() }}</div>
+        <div class="activity-info">
+          <div class="activity-name">{{ entry.name }}</div>
+          <div class="activity-meta">{{ entry.user_id }} &bull; {{ entry.date }} at {{ entry.time }}</div>
+        </div>
+        <span class="badge badge-{{ 'green' if entry.status == 'Present' else 'red' }}">
+          {{ entry.status }}
+        </span>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div class="empty-state">
+      <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+        <circle cx="12" cy="12" r="10"/>
+        <line x1="12" y1="8" x2="12" y2="12"/>
+        <line x1="12" y1="16" x2="12.01" y2="16"/>
+      </svg>
+      <p>No attendance records yet.</p>
+      <a href="{{ url_for('attendance_page') }}" class="btn btn-primary btn-sm">Start Attendance</a>
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- Quick Actions -->
+  <div class="card">
+    <div class="card-header">
+      <h2 class="card-title">Quick Actions</h2>
+    </div>
+    <div class="quick-actions">
+      <a href="{{ url_for('register_page') }}" class="action-card" id="action-register">
+        <div class="action-icon action-blue">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/>
+            <circle cx="9" cy="7" r="4"/>
+            <line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/>
+          </svg>
+        </div>
+        <div>
+          <div class="action-title">Register User</div>
+          <div class="action-desc">Add new face to system</div>
+        </div>
+      </a>
+
+      <a href="{{ url_for('attendance_page') }}" class="action-card" id="action-start">
+        <div class="action-icon action-green">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M23 7l-7 5 7 5V7z"/>
+            <rect x="1" y="5" width="15" height="14" rx="2" ry="2"/>
+          </svg>
+        </div>
+        <div>
+          <div class="action-title">Start Attendance</div>
+          <div class="action-desc">Open live webcam session</div>
+        </div>
+      </a>
+
+      <a href="{{ url_for('report_page') }}" class="action-card" id="action-report">
+        <div class="action-icon action-purple">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+            <polyline points="14 2 14 8 20 8"/>
+            <line x1="16" y1="13" x2="8" y2="13"/>
+            <line x1="16" y1="17" x2="8" y2="17"/>
+          </svg>
+        </div>
+        <div>
+          <div class="action-title">View Reports</div>
+          <div class="action-desc">Export attendance logs</div>
+        </div>
+      </a>
+
+      <a href="/api/export/csv" class="action-card" id="action-csv">
+        <div class="action-icon action-orange">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+            <polyline points="7 10 12 15 17 10"/>
+            <line x1="12" y1="15" x2="12" y2="3"/>
+          </svg>
+        </div>
+        <div>
+          <div class="action-title">Export CSV</div>
+          <div class="action-desc">Download all records</div>
+        </div>
+      </a>
+    </div>
+  </div>
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  // Auto-refresh stats every 30 seconds
+  setInterval(() => {
+    fetch('/api/stats')
+      .then(r => r.json())
+      .then(d => {
+        document.getElementById('stat-total').textContent   = d.total_users;
+        document.getElementById('stat-present').textContent = d.today_present;
+        document.getElementById('stat-rate').textContent    = d.attendance_rate + '%';
+      });
+  }, 30000);
+</script>
+{% endblock %}

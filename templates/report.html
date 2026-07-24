@@ -1,0 +1,151 @@
+{% extends "base.html" %}
+{% block title %}Attendance Report{% endblock %}
+{% block page_title %}Attendance Report{% endblock %}
+
+{% block content %}
+
+<!-- ── Filter Bar ─────────────────────────────────────────── -->
+<div class="card filter-card">
+  <form method="GET" action="{{ url_for('report_page') }}" class="filter-form" id="filter-form">
+    <div class="filter-group">
+      <label for="filter-date" class="form-label">Filter by Date</label>
+      <input type="date" id="filter-date" name="date" class="form-input"
+             value="{{ filter_date }}" />
+    </div>
+    <div class="filter-group">
+      <label for="filter-name" class="form-label">Filter by Name</label>
+      <input type="text" id="filter-name" name="name" class="form-input"
+             placeholder="Search by name…" value="{{ filter_name }}" />
+    </div>
+    <div class="filter-actions">
+      <button type="submit" class="btn btn-primary" id="btn-filter">🔍 Apply Filter</button>
+      <a href="{{ url_for('report_page') }}" class="btn btn-ghost">✕ Clear</a>
+    </div>
+  </form>
+</div>
+
+<!-- ── Export Buttons ─────────────────────────────────────── -->
+<div class="export-bar">
+  <span class="export-label">
+    <strong>{{ logs|length }}</strong> record(s) found
+  </span>
+  <div class="export-actions">
+    <a href="/api/export/csv{% if filter_date or filter_name %}?date={{ filter_date }}&name={{ filter_name }}{% endif %}"
+       class="btn btn-secondary" id="btn-export-csv">
+      📄 Export CSV
+    </a>
+    <a href="/api/export/excel{% if filter_date or filter_name %}?date={{ filter_date }}&name={{ filter_name }}{% endif %}"
+       class="btn btn-success" id="btn-export-excel">
+      📊 Export Excel
+    </a>
+  </div>
+</div>
+
+<!-- ── Attendance Table ───────────────────────────────────── -->
+<div class="card table-card">
+  {% if logs %}
+  <div class="table-wrapper">
+    <table class="data-table" id="attendance-table">
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>Name</th>
+          <th>User ID</th>
+          <th>Date</th>
+          <th>Time</th>
+          <th>Status</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for log in logs %}
+        <tr class="table-row">
+          <td class="td-num">{{ loop.index }}</td>
+          <td class="td-name">
+            <div class="table-user">
+              <div class="table-avatar">{{ log.name[0].upper() }}</div>
+              <span>{{ log.name }}</span>
+            </div>
+          </td>
+          <td class="td-id"><code>{{ log.user_id }}</code></td>
+          <td class="td-date">{{ log.date }}</td>
+          <td class="td-time">{{ log.time }}</td>
+          <td class="td-status">
+            <span class="badge badge-{{ 'green' if log.status == 'Present' else 'red' }}">
+              {{ log.status }}
+            </span>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  {% else %}
+  <div class="empty-state">
+    <svg width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2">
+      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+      <polyline points="14 2 14 8 20 8"/>
+      <line x1="16" y1="13" x2="8" y2="13"/>
+      <line x1="16" y1="17" x2="8" y2="17"/>
+    </svg>
+    <h3>No records found</h3>
+    <p>
+      {% if filter_date or filter_name %}
+        No attendance records match the selected filters.
+        <a href="{{ url_for('report_page') }}">Clear filters</a>
+      {% else %}
+        No attendance has been recorded yet.
+        <a href="{{ url_for('attendance_page') }}">Start a session</a>
+      {% endif %}
+    </p>
+  </div>
+  {% endif %}
+</div>
+
+<!-- ── Daily Summary Chart ───────────────────────────────── -->
+{% if summary %}
+<div class="card">
+  <div class="card-header">
+    <h2 class="card-title">Daily Attendance Summary</h2>
+    <span class="card-subtitle">Last 30 days</span>
+  </div>
+  <div class="chart-container">
+    <div class="bar-chart" id="bar-chart">
+      {% for item in summary[:15] %}
+      <div class="bar-item">
+        <div class="bar-fill" style="height: calc({{ item.count }} * 12px);" title="{{ item.count }} on {{ item.date }}">
+          <span class="bar-value">{{ item.count }}</span>
+        </div>
+        <div class="bar-label">{{ item.date[5:] }}</div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+{% endif %}
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Animate bars on load
+window.addEventListener('load', () => {
+  document.querySelectorAll('.bar-fill').forEach((bar, i) => {
+    bar.style.height = '0';
+    setTimeout(() => {
+      bar.style.transition = 'height 0.5s ease';
+      bar.style.height = bar.getAttribute('style').match(/calc\([^)]+\)/)[0] || '0';
+    }, i * 60);
+  });
+});
+
+// Live search filter
+document.getElementById('filter-name').addEventListener('input', function() {
+  const term = this.value.toLowerCase();
+  document.querySelectorAll('#attendance-table tbody tr').forEach(row => {
+    const name = row.querySelector('.td-name')?.textContent?.toLowerCase() || '';
+    row.style.display = name.includes(term) ? '' : 'none';
+  });
+});
+</script>
+{% endblock %}

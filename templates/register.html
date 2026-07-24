@@ -1,0 +1,317 @@
+{% extends "base.html" %}
+{% block title %}Register User{% endblock %}
+{% block page_title %}Register New User{% endblock %}
+
+{% block content %}
+<div class="register-layout">
+
+  <!-- ── Left: Registration Form ──────────────────────────── -->
+  <div class="card register-form-card">
+    <div class="card-header">
+      <h2 class="card-title">User Information</h2>
+    </div>
+
+    <form id="register-form" enctype="multipart/form-data">
+      <div class="form-group">
+        <label for="reg-name" class="form-label">Full Name <span class="required">*</span></label>
+        <input type="text" id="reg-name" name="name" class="form-input"
+               placeholder="e.g. Arjun Sharma" required autocomplete="off" />
+      </div>
+
+      <div class="form-group">
+        <label for="reg-id" class="form-label">Student / Employee ID <span class="required">*</span></label>
+        <input type="text" id="reg-id" name="user_id" class="form-input"
+               placeholder="e.g. EMP001 or CS2024001" required autocomplete="off" />
+      </div>
+
+      <div class="form-group">
+        <label for="reg-dept" class="form-label">Department / Class</label>
+        <input type="text" id="reg-dept" name="department" class="form-input"
+               placeholder="e.g. Computer Science" autocomplete="off" />
+      </div>
+
+      <!-- Photo Source Toggle -->
+      <div class="form-group">
+        <label class="form-label">Face Photo <span class="required">*</span></label>
+        <div class="toggle-group" id="photo-toggle-group">
+          <button type="button" class="toggle-btn active" id="btn-webcam" onclick="setPhotoSource('webcam')">
+            📷 Use Webcam
+          </button>
+          <button type="button" class="toggle-btn" id="btn-upload" onclick="setPhotoSource('upload')">
+            📁 Upload File
+          </button>
+        </div>
+      </div>
+
+      <!-- Webcam capture section -->
+      <div id="webcam-section">
+        <div class="webcam-preview-box">
+          <video id="reg-video" autoplay playsinline muted></video>
+          <canvas id="reg-canvas" style="display:none;"></canvas>
+          <div class="webcam-overlay" id="webcam-overlay">
+            <div class="face-guide-box"></div>
+            <span class="webcam-hint">Position your face in the box</span>
+          </div>
+          <img id="captured-preview" class="captured-preview" style="display:none;" alt="Captured face" />
+        </div>
+        <div class="webcam-controls">
+          <button type="button" class="btn btn-secondary" id="btn-start-cam" onclick="startRegisterCam()">
+            Start Camera
+          </button>
+          <button type="button" class="btn btn-primary" id="btn-capture" onclick="capturePhoto()" disabled>
+            📸 Capture Photo
+          </button>
+          <button type="button" class="btn btn-ghost" id="btn-retake" onclick="retakePhoto()" style="display:none;">
+            ↺ Retake
+          </button>
+        </div>
+        <input type="hidden" id="photo_b64" name="photo_b64" value="" />
+      </div>
+
+      <!-- File upload section -->
+      <div id="upload-section" style="display:none;">
+        <div class="upload-zone" id="upload-zone"
+             onclick="document.getElementById('photo-file').click()"
+             ondragover="event.preventDefault()"
+             ondrop="handleFileDrop(event)">
+          <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+            <polyline points="17 8 12 3 7 8"/>
+            <line x1="12" y1="3" x2="12" y2="15"/>
+          </svg>
+          <p>Click or drag & drop an image here</p>
+          <span class="upload-hint">JPG, PNG, WEBP accepted</span>
+          <img id="upload-preview" class="upload-img-preview" style="display:none;" alt="Preview" />
+        </div>
+        <input type="file" id="photo-file" name="photo" accept="image/*" style="display:none;"
+               onchange="previewUpload(this)" />
+      </div>
+
+      <button type="submit" class="btn btn-primary btn-full" id="btn-register">
+        <span id="register-btn-text">✅ Register User</span>
+        <span id="register-spinner" class="spinner" style="display:none;"></span>
+      </button>
+    </form>
+
+    <!-- Result Banner -->
+    <div id="register-result" class="result-banner" style="display:none;"></div>
+  </div>
+
+  <!-- ── Right: Registered Users List ────────────────────── -->
+  <div class="card">
+    <div class="card-header">
+      <h2 class="card-title">Registered Users</h2>
+      <span class="badge badge-blue" id="user-count-badge">Loading…</span>
+    </div>
+    <div id="users-list" class="users-list">
+      <div class="loading-dots">
+        <span></span><span></span><span></span>
+      </div>
+    </div>
+  </div>
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// ── Photo source toggle ──────────────────────────────────
+let photoSource = 'webcam';
+let regStream   = null;
+
+function setPhotoSource(source) {
+  photoSource = source;
+  document.getElementById('webcam-section').style.display = source === 'webcam' ? 'block' : 'none';
+  document.getElementById('upload-section').style.display  = source === 'upload'  ? 'block' : 'none';
+  document.getElementById('btn-webcam').classList.toggle('active', source === 'webcam');
+  document.getElementById('btn-upload').classList.toggle('active', source === 'upload');
+  if (source === 'upload' && regStream) {
+    stopStream(regStream); regStream = null;
+  }
+}
+
+// ── Webcam ────────────────────────────────────────────────
+function startRegisterCam() {
+  navigator.mediaDevices.getUserMedia({ video: { width: 480, height: 360 } })
+    .then(stream => {
+      regStream = stream;
+      const video = document.getElementById('reg-video');
+      video.srcObject = stream;
+      document.getElementById('btn-start-cam').style.display  = 'none';
+      document.getElementById('btn-capture').disabled = false;
+      document.getElementById('webcam-overlay').style.display = 'flex';
+      showToast('📷 Camera started. Position your face and capture.', 'info');
+    })
+    .catch(err => {
+      showToast('❌ Camera access denied: ' + err.message, 'error');
+    });
+}
+
+function capturePhoto() {
+  const video  = document.getElementById('reg-video');
+  const canvas = document.getElementById('reg-canvas');
+  canvas.width  = video.videoWidth  || 480;
+  canvas.height = video.videoHeight || 360;
+  canvas.getContext('2d').drawImage(video, 0, 0);
+
+  const dataUrl = canvas.toDataURL('image/jpeg', 0.9);
+  document.getElementById('photo_b64').value = dataUrl;
+
+  // Show captured preview
+  const preview = document.getElementById('captured-preview');
+  preview.src   = dataUrl;
+  preview.style.display = 'block';
+  video.style.display   = 'none';
+  document.getElementById('webcam-overlay').style.display = 'none';
+
+  document.getElementById('btn-capture').style.display = 'none';
+  document.getElementById('btn-retake').style.display  = 'inline-flex';
+  showToast('📸 Photo captured! Fill in details and register.', 'success');
+}
+
+function retakePhoto() {
+  document.getElementById('captured-preview').style.display = 'none';
+  document.getElementById('reg-video').style.display         = 'block';
+  document.getElementById('webcam-overlay').style.display    = 'flex';
+  document.getElementById('btn-capture').style.display       = 'inline-flex';
+  document.getElementById('btn-retake').style.display        = 'none';
+  document.getElementById('photo_b64').value = '';
+}
+
+// ── File Upload ───────────────────────────────────────────
+function previewUpload(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    const img = document.getElementById('upload-preview');
+    img.src   = e.target.result;
+    img.style.display = 'block';
+    document.querySelector('#upload-zone p').style.display = 'none';
+    document.querySelector('#upload-zone svg').style.display = 'none';
+  };
+  reader.readAsDataURL(file);
+}
+
+function handleFileDrop(e) {
+  e.preventDefault();
+  const file = e.dataTransfer.files[0];
+  if (!file) return;
+  const dt = new DataTransfer();
+  dt.items.add(file);
+  document.getElementById('photo-file').files = dt.files;
+  previewUpload(document.getElementById('photo-file'));
+}
+
+// ── Form Submission ───────────────────────────────────────
+document.getElementById('register-form').addEventListener('submit', async function(e) {
+  e.preventDefault();
+
+  const name   = document.getElementById('reg-name').value.trim();
+  const uid    = document.getElementById('reg-id').value.trim();
+  const dept   = document.getElementById('reg-dept').value.trim();
+  const b64    = document.getElementById('photo_b64').value;
+  const file   = document.getElementById('photo-file').files[0];
+
+  if (!name || !uid) {
+    showToast('⚠ Name and ID are required', 'warning'); return;
+  }
+  if (photoSource === 'webcam' && !b64) {
+    showToast('⚠ Please capture a photo first', 'warning'); return;
+  }
+  if (photoSource === 'upload' && !file) {
+    showToast('⚠ Please upload a photo', 'warning'); return;
+  }
+
+  const formData = new FormData();
+  formData.append('name', name);
+  formData.append('user_id', uid);
+  formData.append('department', dept);
+
+  if (photoSource === 'webcam') {
+    formData.append('photo_b64', b64);
+  } else {
+    formData.append('photo', file);
+  }
+
+  // Show spinner
+  setBtnLoading('btn-register', 'register-btn-text', 'register-spinner', true);
+
+  try {
+    const resp = await fetch('/api/register', { method: 'POST', body: formData });
+    const data = await resp.json();
+
+    const resultDiv = document.getElementById('register-result');
+    resultDiv.style.display = 'block';
+    resultDiv.className     = 'result-banner ' + (data.success ? 'result-success' : 'result-error');
+    resultDiv.textContent   = data.message;
+
+    if (data.success) {
+      showToast(data.message, 'success');
+      document.getElementById('register-form').reset();
+      document.getElementById('captured-preview').style.display = 'none';
+      document.getElementById('reg-video').style.display = 'block';
+      document.getElementById('photo_b64').value = '';
+      document.getElementById('btn-capture').style.display = 'inline-flex';
+      document.getElementById('btn-retake').style.display  = 'none';
+      loadUsersList();
+    } else {
+      showToast(data.message, 'error');
+    }
+  } catch (err) {
+    showToast('❌ Network error: ' + err.message, 'error');
+  } finally {
+    setBtnLoading('btn-register', 'register-btn-text', 'register-spinner', false);
+  }
+});
+
+// ── Load Users List ────────────────────────────────────────
+async function loadUsersList() {
+  const resp  = await fetch('/api/users');
+  const data  = await resp.json();
+  const users = data.users || [];
+
+  document.getElementById('user-count-badge').textContent = users.length + ' users';
+
+  const list = document.getElementById('users-list');
+  if (users.length === 0) {
+    list.innerHTML = '<div class="empty-state"><p>No users registered yet.</p></div>';
+    return;
+  }
+
+  list.innerHTML = users.map(u => `
+    <div class="user-item" id="user-${u.user_id}">
+      <div class="user-avatar">${u.name.charAt(0).toUpperCase()}</div>
+      <div class="user-info">
+        <div class="user-name">${u.name}</div>
+        <div class="user-meta">${u.user_id} ${u.department ? '&bull; ' + u.department : ''}</div>
+      </div>
+      <button class="btn-icon btn-danger" onclick="deleteUser('${u.user_id}', '${u.name}')"
+              title="Delete user" aria-label="Delete ${u.name}">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <polyline points="3 6 5 6 21 6"/>
+          <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
+          <path d="M10 11v6"/><path d="M14 11v6"/>
+          <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/>
+        </svg>
+      </button>
+    </div>
+  `).join('');
+}
+
+async function deleteUser(uid, name) {
+  if (!confirm(`Delete user "${name}"? This will also remove their attendance records.`)) return;
+  const resp = await fetch('/api/users/' + uid, { method: 'DELETE' });
+  const data = await resp.json();
+  if (data.success) {
+    showToast(`🗑 ${name} deleted`, 'warning');
+    loadUsersList();
+  } else {
+    showToast('Delete failed', 'error');
+  }
+}
+
+// Init
+loadUsersList();
+</script>
+{% endblock %}

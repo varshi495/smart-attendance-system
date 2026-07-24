@@ -1,0 +1,386 @@
+{% extends "base.html" %}
+{% block title %}Live Attendance{% endblock %}
+{% block page_title %}Live Attendance{% endblock %}
+
+{% block content %}
+<div class="attendance-layout">
+
+  <!-- ── Left: Webcam Feed ─────────────────────────────── -->
+  <div class="card webcam-card">
+    <div class="card-header">
+      <h2 class="card-title">Live Camera Feed</h2>
+      <div class="cam-status-row">
+        <div class="cam-indicator" id="cam-indicator"></div>
+        <span id="cam-status-text">Camera Off</span>
+      </div>
+    </div>
+
+    <!-- Video container with canvas overlay for face boxes -->
+    <div class="cam-container">
+      <video id="att-video" autoplay playsinline muted></video>
+      <canvas id="att-canvas" style="display:none;"></canvas>
+      <!-- Canvas overlay for drawing face boxes client-side -->
+      <canvas id="face-overlay" class="annotated-overlay"></canvas>
+      <!-- Placeholder when cam is off -->
+      <div class="cam-placeholder" id="cam-placeholder">
+        <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1">
+          <path d="M23 7l-7 5 7 5V7z"/>
+          <rect x="1" y="5" width="15" height="14" rx="2" ry="2"/>
+        </svg>
+        <p>Click "Start" to begin facial recognition</p>
+      </div>
+    </div>
+
+    <!-- Controls -->
+    <div class="cam-controls">
+      <button class="btn btn-primary" id="btn-start-att" onclick="startAttendance()">
+        ▶ Start
+      </button>
+      <button class="btn btn-danger" id="btn-stop-att" onclick="stopAttendance()" disabled>
+        ⏹ Stop
+      </button>
+      <div class="fps-counter">
+        <span id="fps-display">0</span> fps
+      </div>
+    </div>
+
+    <!-- Recognition info bar -->
+    <div class="recognition-bar" id="recognition-bar" style="display:none;">
+      <div class="recognition-item">
+        <span class="rec-label">Faces Detected</span>
+        <span class="rec-value" id="faces-detected">0</span>
+      </div>
+      <div class="recognition-item">
+        <span class="rec-label">Session Marked</span>
+        <span class="rec-value" id="session-count">0</span>
+      </div>
+      <div class="recognition-item">
+        <span class="rec-label">Frames Processed</span>
+        <span class="rec-value" id="frames-count">0</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Right: Session Log ─────────────────────────────── -->
+  <div class="card session-card">
+    <div class="card-header">
+      <h2 class="card-title">Session Attendance</h2>
+      <span class="badge badge-green" id="session-badge">0 marked</span>
+    </div>
+
+    <div id="session-log" class="session-log">
+      <div class="empty-state" id="session-empty">
+        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+          <circle cx="12" cy="8" r="4"/>
+          <path d="M6 20v-2a6 6 0 0 1 12 0v2"/>
+        </svg>
+        <p>Recognized faces will appear here</p>
+      </div>
+    </div>
+
+    <!-- Spoof Alert -->
+    <div id="spoof-alert" class="spoof-alert" style="display:none;">
+      ⚠ <strong>Spoof Attempt Detected!</strong> A photo or screen may have been shown to the camera.
+    </div>
+
+    <!-- Instructions -->
+    <div class="instructions-box">
+      <h3>Instructions</h3>
+      <ol>
+        <li>Click <strong>Start</strong> to open webcam</li>
+        <li>Look directly at the camera</li>
+        <li>System auto-marks you as Present</li>
+        <li>Each person is marked only <strong>once per day</strong></li>
+        <li>Green box = recognized &bull; Red box = unknown</li>
+      </ol>
+    </div>
+  </div>
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let attStream      = null;
+let attInterval    = null;
+let isRunning      = false;
+let isSending      = false;
+let sessionMarked  = new Set();
+let frameCount     = 0;
+let fpsTimer       = null;
+let lastFpsCount   = 0;
+
+// ── Draw face boxes on the canvas overlay ──────────────────
+function drawFaceBoxes(faces) {
+  const video   = document.getElementById('att-video');
+  const overlay = document.getElementById('face-overlay');
+  if (!video || !overlay) return;
+
+  const vw = video.videoWidth;
+  const vh = video.videoHeight;
+  overlay.width  = vw;
+  overlay.height = vh;
+
+  const ctx = overlay.getContext('2d');
+  ctx.clearRect(0, 0, vw, vh);
+
+  if (!faces || faces.length === 0) return;
+
+  for (const f of faces) {
+    const known = f.name !== 'Unknown';
+    const live  = f.is_live;
+
+    // Pick color
+    let color;
+    if (!known)      color = '#ef4444';   // Red
+    else if (!live)  color = '#f97316';   // Orange
+    else             color = '#22c55e';   // Green
+
+    const x = f.left, y = f.top;
+    const w = f.right - f.left;
+    const h = f.bottom - f.top;
+
+    // Bounding box
+    ctx.strokeStyle = color;
+    ctx.lineWidth   = 3;
+    ctx.strokeRect(x, y, w, h);
+
+    // Label text
+    let label = known ? `${f.name} (${Math.round(f.confidence * 100)}%)` : 'Unknown';
+    if (known && !live) label += ' [SPOOF?]';
+
+    ctx.font = 'bold 16px Inter, Arial, sans-serif';
+    const tm  = ctx.measureText(label);
+    const lh  = 24;
+    const pad = 8;
+
+    // Place above box; fallback below if clipped
+    let ly = y - lh - 2;
+    if (ly < 0) ly = f.bottom + 2;
+
+    // Label background
+    ctx.fillStyle = color;
+    ctx.fillRect(x, ly, tm.width + pad * 2, lh);
+
+    // Label text
+    ctx.fillStyle = '#ffffff';
+    ctx.fillText(label, x + pad, ly + 17);
+  }
+}
+
+// ── Start Attendance Session ───────────────────────────────
+async function startAttendance() {
+  try {
+    attStream = await navigator.mediaDevices.getUserMedia({
+      video: { width: { ideal: 640 }, height: { ideal: 480 }, facingMode: 'user' }
+    });
+
+    const video = document.getElementById('att-video');
+    video.srcObject = attStream;
+    await video.play();
+
+    document.getElementById('cam-placeholder').style.display = 'none';
+    document.getElementById('btn-start-att').disabled        = true;
+    document.getElementById('btn-stop-att').disabled         = false;
+    document.getElementById('recognition-bar').style.display = 'flex';
+
+    setCamStatus(true);
+    isRunning = true;
+
+    attInterval = setInterval(sendFrame, 1000);
+
+    fpsTimer = setInterval(() => {
+      document.getElementById('fps-display').textContent = frameCount - lastFpsCount;
+      lastFpsCount = frameCount;
+    }, 1000);
+
+    showToast('📷 Attendance session started', 'success');
+
+  } catch (err) {
+    showToast('❌ Camera error: ' + err.message, 'error');
+  }
+}
+
+// ── Stop Attendance Session ────────────────────────────────
+function stopAttendance() {
+  isRunning = false;
+  isSending = false;
+  clearInterval(attInterval);
+  clearInterval(fpsTimer);
+  attInterval = null;
+
+  if (attStream) {
+    attStream.getTracks().forEach(t => t.stop());
+    attStream = null;
+  }
+
+  const overlay = document.getElementById('face-overlay');
+  if (overlay) overlay.getContext('2d').clearRect(0, 0, overlay.width, overlay.height);
+
+  document.getElementById('att-video').srcObject = null;
+  document.getElementById('cam-placeholder').style.display = 'flex';
+  document.getElementById('btn-start-att').disabled        = false;
+  document.getElementById('btn-stop-att').disabled         = true;
+  document.getElementById('fps-display').textContent       = '0';
+
+  setCamStatus(false);
+  showToast('⏹ Attendance session stopped', 'info');
+}
+
+// ── Capture and Send Frame ─────────────────────────────────
+async function sendFrame() {
+  if (!isRunning || isSending) return;
+
+  const video  = document.getElementById('att-video');
+  const canvas = document.getElementById('att-canvas');
+
+  if (video.readyState < 2) return;
+
+  canvas.width  = video.videoWidth;
+  canvas.height = video.videoHeight;
+  canvas.getContext('2d').drawImage(video, 0, 0);
+
+  const b64 = canvas.toDataURL('image/jpeg', 0.6);
+  frameCount++;
+  document.getElementById('frames-count').textContent = frameCount;
+
+  isSending = true;
+
+  try {
+    const resp = await fetch('/api/recognize', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ frame: b64 })
+    });
+
+    const data = await resp.json();
+    if (!data.success) return;
+
+    // Draw face boxes on canvas overlay (no image decoding needed)
+    drawFaceBoxes(data.faces);
+
+    document.getElementById('faces-detected').textContent = data.faces_found;
+
+    // Process attendance results
+    let spoofDetected = false;
+    for (const att of data.attendance) {
+      if (!att.is_live) {
+        spoofDetected = true;
+        continue;
+      }
+
+      if (!att.already_marked && !sessionMarked.has(att.user_id)) {
+        if (window.verifyingLocation) return;
+        window.verifyingLocation = true;
+
+        showToast(`📍 Verifying location for ${att.name}...`, 'info');
+
+        if (navigator.geolocation) {
+          navigator.geolocation.getCurrentPosition(async (position) => {
+            const lat = position.coords.latitude;
+            const lng = position.coords.longitude;
+
+            try {
+              const locResp = await fetch('/api/verify_location_and_mark', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  user_id: att.user_id,
+                  name: att.name,
+                  lat: lat,
+                  lng: lng
+                })
+              });
+              const locData = await locResp.json();
+              if (locData.success) {
+                sessionMarked.add(att.user_id);
+                att.time = locData.time;
+                addToSessionLog(att);
+                updateSessionCount();
+                showToast(`✅ ${locData.message}`, 'success');
+              } else {
+                showToast(`❌ ${locData.message}`, 'error');
+                sessionMarked.add(att.user_id);
+                att.time = new Date().toLocaleTimeString();
+                addToSessionLog(att, false, locData.message);
+                updateSessionCount();
+              }
+            } catch (err) {
+              showToast('❌ Location verification failed', 'error');
+            }
+            window.verifyingLocation = false;
+          }, (error) => {
+            showToast('❌ Geolocation access denied or failed', 'error');
+            window.verifyingLocation = false;
+          });
+        } else {
+          showToast('❌ Geolocation is not supported by this browser', 'error');
+          window.verifyingLocation = false;
+        }
+
+      } else if (att.already_marked && !sessionMarked.has(att.user_id)) {
+        sessionMarked.add(att.user_id);
+        addToSessionLog(att, true);
+        updateSessionCount();
+      }
+    }
+
+    document.getElementById('spoof-alert').style.display = spoofDetected ? 'block' : 'none';
+
+  } catch (err) {
+    console.error('Frame send error:', err);
+  } finally {
+    isSending = false;
+  }
+}
+
+// ── UI Helpers ────────────────────────────────────────────
+function setCamStatus(on) {
+  const dot  = document.getElementById('cam-indicator');
+  const text = document.getElementById('cam-status-text');
+  dot.className  = 'cam-indicator ' + (on ? 'cam-on' : '');
+  text.textContent = on ? 'Camera Active' : 'Camera Off';
+}
+
+function addToSessionLog(att, alreadyMarked = false, failureMsg = null) {
+  document.getElementById('session-empty').style.display = 'none';
+  const log  = document.getElementById('session-log');
+  const time = att.time || new Date().toLocaleTimeString();
+
+  const isFailed = failureMsg !== null;
+  const item = document.createElement('div');
+  item.className = 'session-item ' + (alreadyMarked ? 'session-item-repeat' : (isFailed ? 'session-item-fail' : 'session-item-new'));
+  item.id = 'session-' + att.user_id;
+
+  const badgeClass = alreadyMarked ? 'badge-yellow' : 'badge-green';
+  const badgeStyle = isFailed ? 'background-color: #fee2e2; color: #991b1b; border: 1px solid #f87171;' : '';
+  const badgeText = alreadyMarked ? 'Already Marked' : (isFailed ? 'Failed' : 'Present');
+
+  item.innerHTML = `
+    <div class="session-avatar">${att.name.charAt(0).toUpperCase()}</div>
+    <div class="session-info">
+      <div class="session-name">${att.name}</div>
+      <div class="session-meta">${att.user_id} &bull; ${(att.confidence * 100).toFixed(0)}% match</div>
+      ${isFailed ? `<div class="session-meta" style="color:#ef4444; font-weight:500;">${failureMsg}</div>` : ''}
+    </div>
+    <div class="session-right">
+      <span class="badge ${badgeClass}" style="${badgeStyle}">
+        ${badgeText}
+      </span>
+      <div class="session-time">${time}</div>
+    </div>
+  `;
+  log.insertBefore(item, log.children[1] || null);
+}
+
+function updateSessionCount() {
+  const count = sessionMarked.size;
+  document.getElementById('session-count').textContent  = count;
+  document.getElementById('session-badge').textContent  = count + ' marked';
+}
+
+window.addEventListener('beforeunload', () => {
+  if (attStream) attStream.getTracks().forEach(t => t.stop());
+});
+</script>
+{% endblock %}

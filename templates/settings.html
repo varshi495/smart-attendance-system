@@ -1,0 +1,350 @@
+{% extends "base.html" %}
+{% block title %}Notification Settings{% endblock %}
+{% block page_title %}Notification Settings{% endblock %}
+
+{% block content %}
+<div class="settings-layout">
+
+  <!-- ── Email Settings Card ─────────────────────────────── -->
+  <div class="card settings-card" id="email-card">
+    <div class="card-header">
+      <div class="settings-card-title">
+        <div class="settings-icon settings-icon-blue">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
+            <polyline points="22,6 12,13 2,6"/>
+          </svg>
+        </div>
+        <div>
+          <h2 class="card-title">Email Notifications</h2>
+          <p class="settings-subtitle">Send attendance confirmation via Gmail or any SMTP server</p>
+        </div>
+      </div>
+
+      <!-- Enable toggle -->
+      <label class="toggle-switch" for="email-enabled" title="Enable/disable email notifications">
+        <input type="checkbox" id="email-enabled"
+               {% if cfg.email_enabled %}checked{% endif %} />
+        <span class="toggle-slider"></span>
+      </label>
+    </div>
+
+    <div class="settings-body" id="email-body">
+
+      <div class="info-box">
+        💡 <strong>Gmail tip:</strong> Use your Gmail address as sender, and create an
+        <a href="https://myaccount.google.com/apppasswords" target="_blank" rel="noopener">App Password</a>
+        (not your normal password). Enable 2-step verification first.
+      </div>
+
+      <div class="form-grid">
+        <div class="form-group">
+          <label for="smtp-host" class="form-label">SMTP Host</label>
+          <input type="text" id="smtp-host" class="form-input"
+                 value="{{ cfg.smtp_host or 'smtp.gmail.com' }}"
+                 placeholder="smtp.gmail.com" />
+        </div>
+        <div class="form-group">
+          <label for="smtp-port" class="form-label">SMTP Port</label>
+          <input type="number" id="smtp-port" class="form-input"
+                 value="{{ cfg.smtp_port or '587' }}"
+                 placeholder="587" />
+        </div>
+        <div class="form-group">
+          <label for="sender-email" class="form-label">Sender Email</label>
+          <input type="email" id="sender-email" class="form-input"
+                 value="{{ cfg.sender_email or '' }}"
+                 placeholder="yourname@gmail.com" autocomplete="off" />
+        </div>
+        <div class="form-group">
+          <label for="sender-pass" class="form-label">
+            App Password
+            <span class="hint-tag">not your login password</span>
+          </label>
+          <div class="input-with-eye">
+            <input type="password" id="sender-pass" class="form-input"
+                   value="{{ cfg.sender_pass or '' }}"
+                   placeholder="16-character app password" autocomplete="new-password" />
+            <button type="button" class="eye-btn" onclick="togglePasswordVisibility('sender-pass', this)"
+                    aria-label="Toggle password visibility">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                <circle cx="12" cy="12" r="3"/>
+              </svg>
+            </button>
+          </div>
+        </div>
+        <div class="form-group form-group-full">
+          <label for="recipient-email" class="form-label">Recipient Email(s)</label>
+          <input type="email" id="recipient-email" class="form-input"
+                 value="{{ cfg.recipient_email or '' }}"
+                 placeholder="admin@school.edu" />
+          <span class="field-hint">Attendance confirmation emails will be sent here</span>
+        </div>
+      </div>
+
+      <div class="settings-actions">
+        <button class="btn btn-secondary" id="btn-test-email" onclick="testEmail()">
+          <span id="test-email-text">📧 Send Test Email</span>
+          <span id="test-email-spin" class="spinner" style="display:none;"></span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── SMS / Twilio Settings Card ─────────────────────── -->
+  <div class="card settings-card" id="sms-card">
+    <div class="card-header">
+      <div class="settings-card-title">
+        <div class="settings-icon settings-icon-green">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="5" y="2" width="14" height="20" rx="2" ry="2"/>
+            <line x1="12" y1="18" x2="12.01" y2="18"/>
+          </svg>
+        </div>
+        <div>
+          <h2 class="card-title">SMS Notifications</h2>
+          <p class="settings-subtitle">Send attendance SMS via Twilio (free trial available)</p>
+        </div>
+      </div>
+
+      <!-- Enable toggle -->
+      <label class="toggle-switch" for="sms-enabled" title="Enable/disable SMS notifications">
+        <input type="checkbox" id="sms-enabled"
+               {% if cfg.sms_enabled %}checked{% endif %} />
+        <span class="toggle-slider"></span>
+      </label>
+    </div>
+
+    <div class="settings-body" id="sms-body">
+
+      <div class="info-box info-box-green">
+        💡 <strong>Twilio:</strong> Sign up free at
+        <a href="https://www.twilio.com/try-twilio" target="_blank" rel="noopener">twilio.com</a>.
+        Get your Account SID + Auth Token from the Console. Use a Twilio trial number as sender.
+        Install: <code>pip install twilio</code>
+      </div>
+
+      <div class="form-grid">
+        <div class="form-group">
+          <label for="twilio-sid" class="form-label">Account SID</label>
+          <input type="text" id="twilio-sid" class="form-input"
+                 value="{{ cfg.twilio_sid or '' }}"
+                 placeholder="ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" autocomplete="off" />
+        </div>
+        <div class="form-group">
+          <label for="twilio-token" class="form-label">Auth Token</label>
+          <div class="input-with-eye">
+            <input type="password" id="twilio-token" class="form-input"
+                   value="{{ cfg.twilio_token or '' }}"
+                   placeholder="Your Twilio Auth Token" autocomplete="new-password" />
+            <button type="button" class="eye-btn" onclick="togglePasswordVisibility('twilio-token', this)"
+                    aria-label="Toggle token visibility">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                <circle cx="12" cy="12" r="3"/>
+              </svg>
+            </button>
+          </div>
+        </div>
+        <div class="form-group">
+          <label for="twilio-from" class="form-label">Twilio Phone Number</label>
+          <input type="tel" id="twilio-from" class="form-input"
+                 value="{{ cfg.twilio_from or '' }}"
+                 placeholder="+15551234567" />
+          <span class="field-hint">Your Twilio sender number (with country code)</span>
+        </div>
+        <div class="form-group">
+          <label for="twilio-to" class="form-label">Recipient Phone Number</label>
+          <input type="tel" id="twilio-to" class="form-input"
+                 value="{{ cfg.twilio_to or '' }}"
+                 placeholder="+919876543210" />
+          <span class="field-hint">Number to receive attendance SMS (with country code)</span>
+        </div>
+      </div>
+
+      <div class="settings-actions">
+        <button class="btn btn-secondary" id="btn-test-sms" onclick="testSMS()">
+          <span id="test-sms-text">📱 Send Test SMS</span>
+          <span id="test-sms-spin" class="spinner" style="display:none;"></span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── How It Works Card ───────────────────────────────── -->
+  <div class="card">
+    <div class="card-header">
+      <h2 class="card-title">How Notifications Work</h2>
+    </div>
+    <div class="how-it-works">
+      <div class="hiw-step">
+        <div class="hiw-num">1</div>
+        <div>
+          <div class="hiw-title">Face Recognized</div>
+          <div class="hiw-desc">Camera detects and matches a registered user's face</div>
+        </div>
+      </div>
+      <div class="hiw-arrow">→</div>
+      <div class="hiw-step">
+        <div class="hiw-num">2</div>
+        <div>
+          <div class="hiw-title">Attendance Marked</div>
+          <div class="hiw-desc">Record saved in DB (only once per day)</div>
+        </div>
+      </div>
+      <div class="hiw-arrow">→</div>
+      <div class="hiw-step">
+        <div class="hiw-num">3</div>
+        <div>
+          <div class="hiw-title">Notification Fired</div>
+          <div class="hiw-desc">Email and/or SMS sent in background (non-blocking)</div>
+        </div>
+      </div>
+      <div class="hiw-arrow">→</div>
+      <div class="hiw-step">
+        <div class="hiw-num">4</div>
+        <div>
+          <div class="hiw-title">Delivery</div>
+          <div class="hiw-desc">Admin receives confirmation within seconds</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="notification-preview">
+      <div class="preview-header">📧 Sample Email Preview</div>
+      <div class="preview-body">
+        <div class="preview-row"><span class="preview-label">Subject</span><span>✅ Attendance Marked — Arjun Sharma (CS001)</span></div>
+        <div class="preview-row"><span class="preview-label">Name</span><span>Arjun Sharma</span></div>
+        <div class="preview-row"><span class="preview-label">ID</span><span>CS001</span></div>
+        <div class="preview-row"><span class="preview-label">Department</span><span>Computer Science</span></div>
+        <div class="preview-row"><span class="preview-label">Date &amp; Time</span><span>2026-06-04  09:14:23</span></div>
+        <div class="preview-row"><span class="preview-label">Status</span><span class="badge badge-green">Present</span></div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- ── Sticky Save Button ──────────────────────────────────── -->
+<div class="save-bar" id="save-bar">
+  <span class="save-hint">Unsaved changes</span>
+  <button class="btn btn-primary" id="btn-save-settings" onclick="saveSettings()">
+    <span id="save-btn-text">💾 Save Settings</span>
+    <span id="save-spinner" class="spinner" style="display:none;"></span>
+  </button>
+</div>
+
+<!-- ── Result Banner ──────────────────────────────────────── -->
+<div id="settings-result" class="result-banner" style="display:none; margin-top: 12px;"></div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+// ── Show save bar on any change ───────────────────────────
+const inputs = document.querySelectorAll('.settings-body input');
+inputs.forEach(inp => {
+  inp.addEventListener('change', () => {
+    document.getElementById('save-bar').classList.add('visible');
+  });
+  inp.addEventListener('input', () => {
+    document.getElementById('save-bar').classList.add('visible');
+  });
+});
+
+// ── Password visibility toggle ────────────────────────────
+function togglePasswordVisibility(inputId, btn) {
+  const inp = document.getElementById(inputId);
+  const isHidden = inp.type === 'password';
+  inp.type = isHidden ? 'text' : 'password';
+  btn.style.opacity = isHidden ? '1' : '0.5';
+}
+
+// ── Collect all settings from form ───────────────────────
+function collectSettings() {
+  return {
+    email_enabled:   document.getElementById('email-enabled').checked,
+    smtp_host:       document.getElementById('smtp-host').value.trim(),
+    smtp_port:       document.getElementById('smtp-port').value.trim(),
+    sender_email:    document.getElementById('sender-email').value.trim(),
+    sender_pass:     document.getElementById('sender-pass').value,
+    recipient_email: document.getElementById('recipient-email').value.trim(),
+    sms_enabled:     document.getElementById('sms-enabled').checked,
+    twilio_sid:      document.getElementById('twilio-sid').value.trim(),
+    twilio_token:    document.getElementById('twilio-token').value,
+    twilio_from:     document.getElementById('twilio-from').value.trim(),
+    twilio_to:       document.getElementById('twilio-to').value.trim(),
+  };
+}
+
+// ── Save settings ─────────────────────────────────────────
+async function saveSettings() {
+  setBtnLoading('btn-save-settings', 'save-btn-text', 'save-spinner', true);
+  try {
+    const resp = await fetch('/api/settings/notifications', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(collectSettings()),
+    });
+    const data = await resp.json();
+
+    const resultDiv = document.getElementById('settings-result');
+    resultDiv.style.display = 'block';
+    resultDiv.className     = 'result-banner ' + (data.success ? 'result-success' : 'result-error');
+    resultDiv.textContent   = data.message;
+
+    if (data.success) {
+      showToast(data.message, 'success');
+      document.getElementById('save-bar').classList.remove('visible');
+      setTimeout(() => { resultDiv.style.display = 'none'; }, 4000);
+    } else {
+      showToast(data.message, 'error');
+    }
+  } catch (err) {
+    showToast('❌ Network error: ' + err.message, 'error');
+  } finally {
+    setBtnLoading('btn-save-settings', 'save-btn-text', 'save-spinner', false);
+  }
+}
+
+// ── Test Email ────────────────────────────────────────────
+async function testEmail() {
+  // Auto-save first so test uses the latest values
+  await saveSettings();
+  setBtnLoading('btn-test-email', 'test-email-text', 'test-email-spin', true);
+  try {
+    const resp = await fetch('/api/settings/test-email', { method: 'POST' });
+    const data = await resp.json();
+    showToast(
+      data.success ? '📧 ' + data.message : '❌ ' + data.message,
+      data.success ? 'success' : 'error',
+      5000
+    );
+  } catch (err) {
+    showToast('❌ Network error: ' + err.message, 'error');
+  } finally {
+    setBtnLoading('btn-test-email', 'test-email-text', 'test-email-spin', false);
+  }
+}
+
+// ── Test SMS ──────────────────────────────────────────────
+async function testSMS() {
+  await saveSettings();
+  setBtnLoading('btn-test-sms', 'test-sms-text', 'test-sms-spin', true);
+  try {
+    const resp = await fetch('/api/settings/test-sms', { method: 'POST' });
+    const data = await resp.json();
+    showToast(
+      data.success ? '📱 ' + data.message : '❌ ' + data.message,
+      data.success ? 'success' : 'error',
+      5000
+    );
+  } catch (err) {
+    showToast('❌ Network error: ' + err.message, 'error');
+  } finally {
+    setBtnLoading('btn-test-sms', 'test-sms-text', 'test-sms-spin', false);
+  }
+}
+</script>
+{% endblock %}
