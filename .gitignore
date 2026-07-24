@@ -3,3 +3,7 @@ __pycache__/
 *.pyc
 *.pyo
 *.pyd
+
+# Ignore faces but keep the directory
+known_faces/*
+!known_faces/.gitkeep
