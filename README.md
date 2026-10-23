@@ -22,7 +22,7 @@ A locally-running, AI-powered attendance system that uses your webcam to automat
 
 ## 🖥️ System Requirements
 
-- Python **3.9 or higher**
+- Python **3.10 or higher**
 - Windows 10/11 (or Linux/macOS)
 - Webcam
 - **CMake** + **Visual C++ Build Tools** (for `dlib` on Windows — see below)
@@ -48,16 +48,16 @@ A locally-running, AI-powered attendance system that uses your webcam to automat
 ### Step 3 — Create a Python Virtual Environment (Recommended)
 
 ```bash
-python -m venv venv
+python -m venv .venv
 
 # Activate (Windows PowerShell)
-.\venv\Scripts\Activate.ps1
+.\.venv\Scripts\Activate.ps1
 
 # Activate (Windows CMD)
-venv\Scripts\activate.bat
+.venv\Scripts\activate.bat
 
 # Activate (Linux/macOS)
-source venv/bin/activate
+source .venv/bin/activate
 ```
 
 ### Step 4 — Install Dependencies
@@ -77,9 +77,9 @@ pip install -r requirements.txt
 
 ### Step 5 — Connect Supabase
 
-The application uses Supabase for users, face encodings, attendance, and notification settings. Create a `.env` file from [`.env.example`](.env.example), then set `SUPABASE_URL` and a **server-side Supabase secret key**. Never put the secret key in browser code or commit it.
+The application uses Supabase for users, face encodings, attendance, and notification settings. Face photo files remain on the app server in `known_faces`; they are not uploaded. Create a `.env` file from [`.env.example`](.env.example), then set `SUPABASE_URL` and a **server-side Supabase secret key** (the key beginning `sb_secret_`, not `sb_publishable_`). Never put the secret key in browser code or commit it.
 
-Apply [`supabase/schema.sql`](supabase/schema.sql) to the Supabase SQL Editor for the project configured in [`.vscode/mcp.json`](.vscode/mcp.json). The tables have row-level security enabled and are restricted to the server-side key.
+[`supabase/schema.sql`](supabase/schema.sql) has been applied to the project configured in [`.vscode/mcp.json`](.vscode/mcp.json). Apply it to the Supabase SQL Editor only when setting up another project. The tables have row-level security enabled and are restricted to the server-side key.
 
 To migrate the existing local SQLite records, preview the row counts first and then upload:
 

@@ -23,5 +23,4 @@ openpyxl>=3.1.0
 twilio>=8.0.0          # SMS via Twilio (optional — only needed if SMS is enabled)
 
 # ── Supabase ─────────────────────────────────────────────────
-supabase==2.33.0
-python-dotenv==1.2.4
+-r requirements-supabase.lock

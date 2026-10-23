@@ -27,6 +27,12 @@ def get_client() -> Client:
             "Set SUPABASE_URL and SUPABASE_SECRET_KEY before starting the app. "
             "Use a Supabase secret key only on this trusted server."
         )
+    if key.startswith("sb_publishable_"):
+        raise RuntimeError(
+            "SUPABASE_SECRET_KEY is set to a publishable key. This app requires "
+            "a server-side Supabase secret key (sb_secret_...) to write to its "
+            "RLS-protected tables. Update .env using the Supabase Dashboard API keys."
+        )
     return create_client(url, key)
 
 
@@ -68,7 +74,7 @@ def _decode_face(encoding: Optional[list]) -> Optional[np.ndarray]:
 
 
 def register_user(user_id: str, name: str, department: str,
-                  photo_path: str, encoding: np.ndarray) -> bool:
+                  photo_path: str, encoding: Optional[np.ndarray]) -> bool:
     """Register a user and store the face encoding as a JSON numeric array."""
     client = get_client()
     existing = (
@@ -152,10 +158,8 @@ def get_user_by_id(user_id: str) -> Optional[dict]:
 
 def delete_user(user_id: str) -> bool:
     """Delete a user's attendance rows and user record."""
-    client = get_client()
     try:
-        client.table("attendance").delete().eq("user_id", user_id).execute()
-        client.table("users").delete().eq("user_id", user_id).execute()
+        get_client().table("users").delete().eq("user_id", user_id).execute()
     except APIError as error:
         logger.exception("Error deleting user %s", user_id)
         raise RuntimeError("Unable to delete user from Supabase.") from error
@@ -203,6 +207,12 @@ def mark_attendance(user_id: str, name: str, status: str = "Present",
             "verified": verified,
         }).execute()
     except APIError as error:
+        if error.code == "23505":
+            return {
+                "success": True,
+                "already_marked": True,
+                "message": f"{name} already marked for today",
+            }
         logger.exception("Error marking attendance for user %s", user_id)
         raise RuntimeError("Unable to mark attendance in Supabase.") from error
 

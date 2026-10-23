@@ -51,11 +51,13 @@ def load_local_data() -> tuple[list, list, list]:
                 "marked_at": row["marked_at"],
                 "lat": row["lat"],
                 "lng": row["lng"],
-                "verified": row["verified"],
+                "verified": (
+                    None if row["verified"] is None else bool(row["verified"])
+                ),
             }
             for row in connection.execute(
                 "SELECT id, user_id, name, date, time, status, marked_at, "
-                "lat, lng, verified FROM attendance"
+                "lat, lng, verified FROM attendance ORDER BY id"
             )
         ]
         settings = [
