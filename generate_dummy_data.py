@@ -1,19 +1,9 @@
-"""
-generate_dummy_data.py - Generate sample attendance data for testing
-Smart Attendance System
+"""Generate sample users and attendance records in Supabase for a demo."""
 
-Run this AFTER installing dependencies and AFTER registering at least one user.
-Or use it standalone to populate the DB with fake records for demo purposes.
-
-Usage:
-    python generate_dummy_data.py
-"""
-
-import sqlite3
 import random
 from datetime import date, timedelta
-from config import DB_PATH
-from database import init_db, get_connection
+
+from database import get_client, init_db, register_user
 
 # ── Sample Users ─────────────────────────────────────────────────────────────
 SAMPLE_USERS = [
@@ -33,27 +23,17 @@ ATTENDANCE_TIMES = ["09:01:32", "09:14:05", "09:22:41", "09:35:17", "09:42:58",
 
 def create_dummy_users():
     """Insert sample users WITHOUT face encodings (for demo/testing only)."""
-    conn = get_connection()
     inserted = 0
 
     for u in SAMPLE_USERS:
-        try:
-            conn.execute("""
-                INSERT OR IGNORE INTO users (user_id, name, department, encoding)
-                VALUES (?, ?, ?, NULL)
-            """, (u["user_id"], u["name"], u["department"]))
+        if register_user(u["user_id"], u["name"], u["department"], "", None):
             inserted += 1
-        except Exception as e:
-            print(f"  Skipped {u['user_id']}: {e}")
-
-    conn.commit()
-    conn.close()
     print(f"✅ Inserted {inserted} sample users")
 
 
 def create_dummy_attendance():
     """Generate attendance records for the past 10 days."""
-    conn  = get_connection()
+    client = get_client()
     today = date.today()
     count = 0
 
@@ -65,24 +45,29 @@ def create_dummy_attendance():
 
         for i, user in enumerate(daily_attendees):
             time_str = ATTENDANCE_TIMES[i % len(ATTENDANCE_TIMES)]
-            try:
-                conn.execute("""
-                    INSERT OR IGNORE INTO attendance (user_id, name, date, time, status)
-                    VALUES (?, ?, ?, ?, 'Present')
-                """, (user["user_id"], user["name"], day, time_str))
+            existing = (
+                client.table("attendance")
+                .select("id")
+                .eq("user_id", user["user_id"])
+                .eq("date", day)
+                .limit(1)
+                .execute()
+                .data
+            )
+            if not existing:
+                client.table("attendance").insert({
+                    "user_id": user["user_id"],
+                    "name": user["name"],
+                    "date": day,
+                    "time": time_str,
+                    "status": "Present",
+                }).execute()
                 count += 1
-            except Exception:
-                pass
-
-    conn.commit()
-    conn.close()
     print(f"✅ Inserted {count} sample attendance records (past 10 days)")
 
 
 if __name__ == "__main__":
     print("\n🔧 Generating dummy data for Smart Attendance System...\n")
-
-    # Initialize DB first
     init_db()
 
     create_dummy_users()

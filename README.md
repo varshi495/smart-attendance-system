@@ -75,17 +75,34 @@ pip install -r requirements.txt
 >    pip install face_recognition
 >    ```
 
+### Step 5 — Connect Supabase
+
+The application uses Supabase for users, face encodings, attendance, and notification settings. Create a `.env` file from [`.env.example`](.env.example), then set `SUPABASE_URL` and a **server-side Supabase secret key**. Never put the secret key in browser code or commit it.
+
+Apply [`supabase/schema.sql`](supabase/schema.sql) to the Supabase SQL Editor for the project configured in [`.vscode/mcp.json`](.vscode/mcp.json). The tables have row-level security enabled and are restricted to the server-side key.
+
+To migrate the existing local SQLite records, preview the row counts first and then upload:
+
+```powershell
+python migrate_sqlite_to_supabase.py
+$env:SUPABASE_URL = "https://wsciptdnzqulddouplqk.supabase.co"
+$env:SUPABASE_SECRET_KEY = "your-server-side-secret-key"
+python migrate_sqlite_to_supabase.py --apply
+```
+
+The migration preserves existing attendance records and face encodings and verifies cloud row counts. Face encodings and notification credentials are sensitive; only run the upload in a trusted environment. The app does not silently fall back to SQLite when Supabase is unavailable.
+
 ---
 
 ## 🚀 Running the Application
 
-### Option A — Run normally (empty database)
+### Option A — Run against Supabase
 
 ```bash
 python app.py
 ```
 
-Then open: **http://localhost:5000**
+Set the Supabase environment variables first (see Step 5), then open: **http://localhost:5000**.
 
 ### Option B — Run with sample data (for testing/demo)
 
@@ -176,6 +193,10 @@ Edit [`config.py`](config.py) to adjust settings:
 | `RECHECK_DELAY` | `30` | Seconds before re-checking same person |
 | `LIVENESS_THRESHOLD` | `50.0` | Anti-spoofing sensitivity |
 | `PORT` | `5000` | Flask server port |
+
+### Supabase MCP in VS Code
+
+The project includes a VS Code MCP server configuration at [`.vscode/mcp.json`](.vscode/mcp.json). Reload the workspace or approve the Supabase MCP server when prompted to connect it to the configured Supabase project. This provides Supabase tools in VS Code; the attendance application itself continues to use its local SQLite database.
 
 ---
 

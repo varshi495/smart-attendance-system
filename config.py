@@ -4,6 +4,9 @@ Smart Attendance System with Facial Recognition
 """
 
 import os
+from dotenv import load_dotenv
+
+load_dotenv()
 
 # ── Base Paths ──────────────────────────────────────────────────────────────
 BASE_DIR        = os.path.dirname(os.path.abspath(__file__))
